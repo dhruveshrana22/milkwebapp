@@ -7,15 +7,17 @@ import {
     UsersIcon,
     CubeIcon,
     ShoppingCartIcon,
-    ChartBarSquareIcon
+    ChartBarIcon,
+    ClipboardDocumentListIcon
 } from '@heroicons/react/24/outline';
 
 const navItems = [
     { name: 'Dashboard', href: '/', icon: HomeIcon },
     { name: 'POS Sales', href: '/sales', icon: ShoppingCartIcon },
     { name: 'Customers', href: '/customers', icon: UsersIcon },
-    { name: 'Master Entry', href: '/master', icon: CubeIcon },
-    { name: 'Reports', href: '/reports', icon: ChartBarSquareIcon },
+    { name: 'Transactions', href: '/transactions', icon: ClipboardDocumentListIcon },
+    { name: 'Product Entry', href: '/master', icon: CubeIcon },
+    { name: 'Reports', href: '/reports', icon: ChartBarIcon },
 ];
 
 export default function Navigation() {

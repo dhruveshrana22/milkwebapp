@@ -6,25 +6,25 @@ const DataContext = createContext();
 
 export const DataProvider = ({ children }) => {
     const [customers, setCustomers] = useState([]);
-    const [milkTypes, setMilkTypes] = useState([]); // { id, name, fat, unit, price }
-    const [products, setProducts] = useState([]); // { id, name, unit, price, stock }
+    const [products, setProducts] = useState([]);
     const [orders, setOrders] = useState([]); // Daily milk logs
     const [bills, setBills] = useState([]); // POS transactions
+    const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
 
     // Load data from LocalStorage on mount
     useEffect(() => {
         const savedCustomers = localStorage.getItem('milk_customers');
-        const savedMilkTypes = localStorage.getItem('milk_types');
         const savedProducts = localStorage.getItem('milk_products');
         const savedBills = localStorage.getItem('milk_bills');
         const savedOrders = localStorage.getItem('milk_orders');
+        const savedCategories = localStorage.getItem('milk_categories');
 
         if (savedCustomers) setCustomers(JSON.parse(savedCustomers));
-        if (savedMilkTypes) setMilkTypes(JSON.parse(savedMilkTypes));
         if (savedProducts) setProducts(JSON.parse(savedProducts));
         if (savedBills) setBills(JSON.parse(savedBills));
         if (savedOrders) setOrders(JSON.parse(savedOrders));
+        if (savedCategories) setCategories(JSON.parse(savedCategories));
 
         setLoading(false);
     }, []);
@@ -33,27 +33,27 @@ export const DataProvider = ({ children }) => {
     useEffect(() => {
         if (!loading) {
             localStorage.setItem('milk_customers', JSON.stringify(customers));
-            localStorage.setItem('milk_types', JSON.stringify(milkTypes));
             localStorage.setItem('milk_products', JSON.stringify(products));
             localStorage.setItem('milk_bills', JSON.stringify(bills));
             localStorage.setItem('milk_orders', JSON.stringify(orders));
+            localStorage.setItem('milk_categories', JSON.stringify(categories));
         }
-    }, [customers, milkTypes, products, bills, orders, loading]);
+    }, [customers, products, bills, orders, categories, loading]);
 
     // Customer Actions
     const addCustomer = (customer) => setCustomers(prev => [...prev, { ...customer, id: Date.now().toString() }]);
     const updateCustomer = (id, data) => setCustomers(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
     const deleteCustomer = (id) => setCustomers(prev => prev.filter(c => c.id !== id));
 
-    // Milk Master Actions
-    const addMilkType = (type) => setMilkTypes(prev => [...prev, { ...type, id: Date.now().toString() }]);
-    const updateMilkType = (id, data) => setMilkTypes(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
-    const deleteMilkType = (id) => setMilkTypes(prev => prev.filter(t => t.id !== id));
-
     // Product Actions
     const addProduct = (product) => setProducts(prev => [...prev, { ...product, id: Date.now().toString() }]);
     const updateProduct = (id, data) => setProducts(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
     const deleteProduct = (id) => setProducts(prev => prev.filter(p => p.id !== id));
+
+    // Category Actions
+    const addCategory = (category) => setCategories(prev => [...prev, { ...category, id: Date.now().toString() }]);
+    const updateCategory = (id, data) => setCategories(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
+    const deleteCategory = (id) => setCategories(prev => prev.filter(c => c.id !== id));
 
     // Order Actions (Daily Logs)
     const addOrder = (order) => {
@@ -76,7 +76,9 @@ export const DataProvider = ({ children }) => {
             if (item.type === 'product') {
                 const product = products.find(p => p.id === item.productId);
                 if (product) {
-                    updateProduct(product.id, { stock: parseFloat(product.stock) - parseFloat(item.quantity) });
+                    // Simple stock reduction, might need adjustment for variants
+                    const stockReduction = parseFloat(item.quantity) || 0;
+                    updateProduct(product.id, { stock: (parseFloat(product.stock) || 0) - stockReduction });
                 }
             }
         });
@@ -87,8 +89,8 @@ export const DataProvider = ({ children }) => {
     return (
         <DataContext.Provider value={{
             customers, addCustomer, updateCustomer, deleteCustomer,
-            milkTypes, addMilkType, updateMilkType, deleteMilkType,
             products, addProduct, updateProduct, deleteProduct,
+            categories, addCategory, updateCategory, deleteCategory,
             orders, addOrder, updateOrder, deleteOrder,
             bills, addBill, deleteBill,
             loading

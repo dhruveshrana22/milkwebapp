@@ -10,25 +10,33 @@ import {
     PhoneIcon,
     XMarkIcon,
     UsersIcon,
-    BeakerIcon,
     CubeIcon,
     CheckCircleIcon
 } from "@heroicons/react/24/outline";
 import Link from 'next/link';
 
 export default function Customers() {
-    const { customers, addCustomer, updateCustomer, deleteCustomer, milkTypes, products } = useData();
+    const { customers, addCustomer, updateCustomer, deleteCustomer, products } = useData();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
     const [formData, setFormData] = useState({
         name: '',
         mobile: '',
         address: '',
         defaultQty: '1',
-        linkedProducts: [] // Array of { id, type, name, fat? }
+        linkedProducts: [] // Array of { id, type, name }
     });
 
+    const filteredCustomers = customers.filter(c =>
+        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.mobile.includes(searchTerm)
+    );
+
+    const [modalProductFilter, setModalProductFilter] = useState('All');
+
     const handleOpenModal = (customer = null) => {
+        setModalProductFilter('All');
         if (customer) {
             setEditingCustomer(customer);
             setFormData({
@@ -42,22 +50,21 @@ export default function Customers() {
         setIsModalOpen(true);
     };
 
-    const toggleProductSelection = (item, type) => {
-        const isSelected = formData.linkedProducts.find(p => p.id === item.id && p.type === type);
+    const toggleProductSelection = (item) => {
+        const isSelected = formData.linkedProducts.find(p => p.id === item.id);
         if (isSelected) {
             setFormData({
                 ...formData,
-                linkedProducts: formData.linkedProducts.filter(p => !(p.id === item.id && p.type === type))
+                linkedProducts: formData.linkedProducts.filter(p => p.id !== item.id)
             });
         } else {
             setFormData({
                 ...formData,
                 linkedProducts: [...formData.linkedProducts, {
                     id: item.id,
-                    type,
+                    type: 'product',
                     name: item.name,
-                    fat: item.fat || null,
-                    unit: item.unit
+                    unit: item.unit_type
                 }]
             });
         }
@@ -73,212 +80,249 @@ export default function Customers() {
         setIsModalOpen(false);
     };
 
+    // Filtered products for modal
+    const modalFilteredProducts = products.filter(p => {
+        if (modalProductFilter === 'All') return true;
+        return p.unit_type?.includes(modalProductFilter);
+    });
+
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="space-y-3 px-1 sm:px-0">
+            <div className="flex items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-black text-gray-900">Customers</h1>
-                    <p className="text-gray-500 font-medium">Manage your milk delivery network.</p>
+                    <h1 className="text-lg font-black text-gray-900 tracking-tight leading-none">Customers</h1>
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-1">Delivery Network</p>
                 </div>
                 <button
                     onClick={() => handleOpenModal()}
-                    className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-100 transition-all hover:bg-blue-700 active:scale-95"
+                    className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-[10px] font-black text-white shadow-lg shadow-blue-100 transition-all active:scale-95"
                 >
-                    <PlusIcon className="h-5 w-5" />
-                    <span>Add Customer</span>
+                    <PlusIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">ADD CUSTOMER</span>
+                    <span className="sm:hidden">ADD</span>
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {customers.map((customer) => (
-                    <div key={customer.id} className="group relative flex flex-col justify-between rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-100 transition-all hover:shadow-md">
-                        <div className="mb-4">
-                            <div className="flex items-start justify-between">
-                                <Link href={`/customers/${customer.id}`} className="flex-1 min-w-0">
-                                    <h3 className="text-lg font-black text-gray-900 group-hover:text-blue-600 transition-colors uppercase truncate">{customer.name}</h3>
-                                </Link>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => handleOpenModal(customer)} className="p-1.5 text-gray-400 hover:text-blue-600">
-                                        <PencilIcon className="h-4 w-4" />
-                                    </button>
-                                    <button onClick={() => deleteCustomer(customer.id)} className="p-1.5 text-gray-400 hover:text-red-500">
-                                        <TrashIcon className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="mt-3 space-y-2 text-sm text-gray-500">
-                                <div className="flex items-center gap-2">
-                                    <PhoneIcon className="h-4 w-4 text-gray-400" />
-                                    <span className="font-medium">{customer.mobile}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <MapPinIcon className="h-4 w-4 text-gray-400" />
-                                    <span className="truncate font-medium">{customer.address}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Linked Products Tags */}
-                        {customer.linkedProducts && customer.linkedProducts.length > 0 && (
-                            <div className="mb-4 flex flex-wrap gap-1.5 border-t border-gray-50 pt-4">
-                                {customer.linkedProducts.map((p, idx) => (
-                                    <span key={idx} className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tight ${p.type === 'milk' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                        {p.name} {p.fat ? `(${p.fat}%)` : ''}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
-
-                        <div className="mt-2 border-t border-gray-50 pt-3">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Default Milk</span>
-                                <span className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-xl">{customer.defaultQty} L</span>
-                            </div>
-                        </div>
-                    </div>
-                ))}
+            {/* Search Bar */}
+            <div className="relative">
+                <input
+                    type="text"
+                    placeholder="Search name or mobile..."
+                    className="w-full rounded-xl border-none bg-white p-3 pl-10 text-[11px] font-bold text-gray-900 shadow-sm ring-1 ring-gray-100 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                />
+                <UsersIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             </div>
 
-            {customers.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <div className="mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-gray-100 text-gray-400 shadow-inner">
-                        <UsersIcon className="h-12 w-12" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900">No customers found</h3>
-                    <p className="mt-1 text-gray-500 font-medium">Start by adding your first delivery customer.</p>
+            {/* Unified Table View */}
+            <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-gray-50/50 border-b border-gray-100">
+                            <tr>
+                                <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-gray-400">Customer</th>
+                                <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-gray-400">Mobile</th>
+                                {/* <th className="hidden md:table-cell px-3 py-2 text-[9px] font-black uppercase tracking-widest text-gray-400">Address</th>
+                                <th className="hidden lg:table-cell px-3 py-2 text-[9px] font-black uppercase tracking-widest text-gray-400">Favorite Products</th>
+                                <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-gray-400 text-center">Qty</th> */}
+                                <th className="px-3 py-2 text-right text-[9px] font-black uppercase tracking-widest text-gray-400">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {filteredCustomers.map((customer) => (
+                                <tr key={customer.id} className="hover:bg-gray-50/50 transition-colors h-16">
+                                    <td className="px-3 py-2.5">
+                                        <Link href={`/customers/${customer.id}`} className="block min-w-0">
+                                            <p className="text-[18px] font-black text-gray-900 uppercase truncate leading-none">{customer.name}</p>
+                                        </Link>
+                                    </td>
+                                    <td className="hidden md:table-cell px-3 py-2.5 max-w-[200px]">
+                                        <div className="flex items-center gap-1.5 text-[9px] text-gray-500">
+                                            <p className="text-[18px] font-bold text-gray-400 mt-0.5">{customer.mobile}</p>
+                                        </div>
+                                    </td>
+                                    {/* <td className="hidden md:table-cell px-3 py-2.5 max-w-[200px]">
+                                        <div className="flex items-center gap-1.5 text-[9px] text-gray-500">
+                                            <MapPinIcon className="h-3 w-3 text-gray-400 shrink-0" />
+                                            <span className="truncate italic font-medium">{customer.address}</span>
+                                        </div>
+                                    </td>
+                                    <td className="hidden lg:table-cell px-3 py-2.5">
+                                        <div className="flex flex-wrap gap-1">
+                                            {customer.linkedProducts?.map((p, idx) => (
+                                                <span key={idx} className="whitespace-nowrap px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tight bg-blue-50 text-blue-600 ring-1 ring-blue-100/50">
+                                                    {p.name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-center">
+                                        <span className="inline-block text-[9px] font-black text-blue-600 bg-blue-100/30 px-2 py-0.5 rounded-md min-w-[35px]">
+                                            {customer.defaultQty}L
+                                        </span>
+                                    </td> */}
+                                    <td className="px-3 py-2.5">
+                                        <div className="flex justify-end gap-1">
+                                            <button onClick={() => handleOpenModal(customer)} className="p-1.5 text-gray-300 hover:text-blue-600 transition-colors">
+                                                <PencilIcon className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button onClick={() => deleteCustomer(customer.id)} className="p-1.5 text-gray-300 hover:text-red-500 transition-colors">
+                                                <TrashIcon className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {filteredCustomers.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-3xl ring-1 ring-gray-100 border-2 border-dashed border-gray-100">
+                    <UsersIcon className="h-10 w-10 text-gray-200 mb-2" />
+                    <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest">No customers found</h3>
                 </div>
             )}
 
             {/* Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm shadow-[inset_0_0_100px_rgba(0,0,0,0.2)]" onClick={() => setIsModalOpen(false)}></div>
-                    <div className="relative w-full max-w-2xl rounded-[40px] bg-white p-8 shadow-2xl ring-1 ring-gray-100 overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-500"></div>
-                        <div className="mb-8 flex items-center justify-between">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md" onClick={() => setIsModalOpen(false)}></div>
+                    <div className="relative w-full max-w-2xl rounded-[2.5rem] bg-white shadow-2xl ring-1 ring-gray-100 overflow-hidden flex flex-col max-h-[90vh]">
+                        {/* Modal Header */}
+                        <div className="px-6 py-6 border-b border-gray-50 flex items-center justify-between bg-white sticky top-0 z-10">
                             <div>
-                                <h2 className="text-3xl font-black text-gray-900 tracking-tight">{editingCustomer ? 'Edit Profile' : 'New Customer'}</h2>
-                                <p className="text-sm font-medium text-gray-400">Setup customer preferences and products.</p>
+                                <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">{editingCustomer ? 'Edit Profile' : 'New Customer'}</h2>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Setup Customer Settings</p>
                             </div>
-                            <button onClick={() => setIsModalOpen(false)} className="rounded-2xl p-3 text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-all">
-                                <XMarkIcon className="h-6 w-6" />
+                            <button onClick={() => setIsModalOpen(false)} className="rounded-xl bg-gray-50 p-2.5 text-gray-400 hover:text-gray-900 transition-all">
+                                <XMarkIcon className="h-5 w-5" />
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-5">
-                                    <div>
-                                        <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Full Name</label>
-                                        <input
-                                            required
-                                            type="text"
-                                            placeholder="John Doe"
-                                            className="w-full rounded-2xl border-none px-5 py-4 text-sm text-black font-bold focus:ring-2 focus:ring-blue-500 bg-gray-50 shadow-inner outline-none transition-all uppercase"
-                                            value={formData.name}
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        />
+                        {/* Modal Body */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                            <form onSubmit={handleSubmit} className="space-y-8">
+                                {/* Section 1: Personal Info */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="h-5 w-1 rounded-full bg-blue-600"></div>
+                                        <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Personal Information</h3>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="sm:col-span-2">
+                                            <input
+                                                required
+                                                type="text"
+                                                placeholder="Customer Full Name"
+                                                className="w-full rounded-2xl border-none bg-gray-50 p-4 text-xs font-bold text-gray-900 shadow-inner outline-none focus:ring-2 focus:ring-blue-500/20 transition-all uppercase"
+                                                value={formData.name}
+                                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            />
+                                        </div>
                                         <div>
-                                            <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Mobile</label>
                                             <input
                                                 required
                                                 type="tel"
-                                                placeholder="9876..."
-                                                className="w-full rounded-2xl border-none px-5 py-4 text-sm text-black font-bold focus:ring-2 focus:ring-blue-500 bg-gray-50 shadow-inner outline-none transition-all"
+                                                placeholder="Mobile Number"
+                                                className="w-full rounded-2xl border-none bg-gray-50 p-4 text-xs font-bold text-gray-900 shadow-inner outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                                                 value={formData.mobile}
                                                 onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Daily Liters</label>
-                                            <input
+                                            <div className="relative">
+                                                <input
+                                                    required
+                                                    type="number"
+                                                    step="0.5"
+                                                    placeholder="Default Qty (L)"
+                                                    className="w-full rounded-2xl border-none bg-gray-50 p-4 text-xs font-bold text-gray-900 shadow-inner outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                                                    value={formData.defaultQty}
+                                                    onChange={(e) => setFormData({ ...formData, defaultQty: e.target.value })}
+                                                />
+                                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-400">litres</span>
+                                            </div>
+                                        </div>
+                                        <div className="sm:col-span-2">
+                                            <textarea
                                                 required
-                                                type="number"
-                                                step="0.5"
-                                                className="w-full rounded-2xl border-none px-5 py-4 text-sm text-black font-bold focus:ring-2 focus:ring-blue-500 bg-gray-50 shadow-inner outline-none transition-all"
-                                                value={formData.defaultQty}
-                                                onChange={(e) => setFormData({ ...formData, defaultQty: e.target.value })}
+                                                rows="2"
+                                                placeholder="Full Delivery Address"
+                                                className="w-full rounded-2xl border-none bg-gray-50 p-4 text-xs font-bold text-gray-900 shadow-inner outline-none focus:ring-2 focus:ring-blue-500/20 transition-all resize-none"
+                                                value={formData.address}
+                                                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                                             />
                                         </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-1.5 ml-1">Address</label>
-                                        <textarea
-                                            required
-                                            rows="3"
-                                            className="w-full rounded-2xl border-none px-5 py-4 text-sm text-black font-bold focus:ring-2 focus:ring-blue-500 bg-gray-50 shadow-inner outline-none transition-all resize-none"
-                                            value={formData.address}
-                                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                        />
-                                    </div>
                                 </div>
 
-                                {/* Product Selection */}
+                                {/* Section 2: Product Connection */}
                                 <div className="space-y-4">
-                                    <label className="block text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Favorite Products</label>
-                                    <div className="rounded-[32px] bg-gray-50 p-6 shadow-inner space-y-6 min-h-full">
-                                        {/* Milk Section */}
-                                        <div className="space-y-3">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
-                                                <BeakerIcon className="h-3 w-3" /> Milk Variants
-                                            </p>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {milkTypes.map(m => {
-                                                    const selected = formData.linkedProducts.find(p => p.id === m.id && p.type === 'milk');
-                                                    return (
-                                                        <button
-                                                            key={m.id}
-                                                            type="button"
-                                                            onClick={() => toggleProductSelection(m, 'milk')}
-                                                            className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${selected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-white text-gray-600 hover:border-blue-100'}`}
-                                                        >
-                                                            <div className="text-left">
-                                                                <p className="text-[10px] font-black uppercase leading-tight">{m.name}</p>
-                                                                <p className={`text-[9px] font-bold ${selected ? 'text-blue-100' : 'text-gray-400'}`}>{m.fat}% Fat</p>
-                                                            </div>
-                                                            {selected && <CheckCircleIcon className="h-4 w-4" />}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-5 w-1 rounded-full bg-blue-600"></div>
+                                            <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Favorite Products</h3>
                                         </div>
-
-                                        {/* Products Section */}
-                                        <div className="space-y-3 pt-4 border-t border-gray-200/50">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
-                                                <CubeIcon className="h-3 w-3" /> Dairy Products
-                                            </p>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {products.map(p => {
-                                                    const selected = formData.linkedProducts.find(i => i.id === p.id && i.type === 'product');
-                                                    return (
-                                                        <button
-                                                            key={p.id}
-                                                            type="button"
-                                                            onClick={() => toggleProductSelection(p, 'product')}
-                                                            className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${selected ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-white text-gray-600 hover:border-emerald-100'}`}
-                                                        >
-                                                            <p className="text-[10px] font-black uppercase tracking-tighter leading-tight text-left truncate pr-1">{p.name}</p>
-                                                            {selected && <CheckCircleIcon className="h-4 w-4 shrink-0" />}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
+                                        <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
+                                            {['All', 'Litre', 'Kg', 'Pcs'].map(unit => (
+                                                <button
+                                                    key={unit}
+                                                    type="button"
+                                                    onClick={() => setModalProductFilter(unit)}
+                                                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-tight transition-all whitespace-nowrap ${modalProductFilter === unit ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                                                >
+                                                    {unit}
+                                                </button>
+                                            ))}
                                         </div>
                                     </div>
-                                </div>
-                            </div>
 
-                            <button
-                                type="submit"
-                                className="w-full rounded-[24px] bg-blue-600 py-5 text-lg font-black text-white shadow-xl shadow-blue-100 transition-all hover:bg-blue-700 active:scale-[0.98] mt-4 flex items-center justify-center gap-3 tracking-tight"
-                            >
-                                {editingCustomer ? 'SYNC UPDATES' : 'SAVE CUSTOMER PROFILE'}
-                            </button>
-                        </form>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                        {modalFilteredProducts.map(p => {
+                                            const selected = formData.linkedProducts.find(i => i.id === p.id);
+                                            return (
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    onClick={() => toggleProductSelection(p)}
+                                                    className={`group relative flex flex-col items-start p-3 rounded-2xl border-2 transition-all ${selected ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-gray-50 border-gray-50 text-gray-600 hover:border-blue-100 active:scale-95'}`}
+                                                >
+                                                    <span className={`text-[8px] font-black uppercase tracking-widest mb-1 ${selected ? 'text-blue-100' : 'text-gray-400'}`}>
+                                                        {p.unit_type?.split(' ')[0]}
+                                                    </span>
+                                                    <p className={`text-[10px] font-black uppercase tracking-tight leading-tight text-left line-clamp-1 ${selected ? 'text-white' : 'text-gray-900'}`}>
+                                                        {p.name}
+                                                    </p>
+                                                    {selected && (
+                                                        <div className="absolute top-1 right-1">
+                                                            <CheckCircleIcon className="h-3 w-3 text-white" />
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                        {modalFilteredProducts.length === 0 && (
+                                            <div className="col-span-full py-8 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">No match</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Modal Footer Actions */}
+                                <div className="sticky bottom-0 bg-white pt-4 pb-2 border-t border-gray-50 mt-10">
+                                    <button
+                                        type="submit"
+                                        className="w-full rounded-2xl bg-blue-600 py-5 text-sm font-black text-white shadow-2xl shadow-blue-600/20 hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3 tracking-widest"
+                                    >
+                                        {editingCustomer ? 'SYNC UPDATES' : 'SAVE CUSTOMER PROFILE'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             )}
