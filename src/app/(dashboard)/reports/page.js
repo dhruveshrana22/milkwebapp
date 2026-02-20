@@ -3,12 +3,15 @@
 import { useState, useMemo } from 'react';
 import { useData } from "@/context/DataContext";
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from "date-fns";
+import * as XLSX from 'xlsx';
 import {
     PrinterIcon,
     TrashIcon,
     ArrowDownTrayIcon,
-    MapPinIcon,
-    ShoppingBagIcon
+    TrashIcon as TrashIconSolid,
+    ShoppingBagIcon,
+    TableCellsIcon,
+    ChartBarIcon
 } from "@heroicons/react/24/outline";
 
 export default function Reports() {
@@ -29,111 +32,222 @@ export default function Reports() {
         });
     }, [bills, fromDate, toDate, searchTerm]);
 
-    const totalRevenue = useMemo(() => filteredBills.reduce((sum, b) => sum + b.total, 0), [filteredBills]);
+    const stats = useMemo(() => {
+        const total = filteredBills.reduce((sum, b) => sum + (parseFloat(b.total) || 0), 0);
+        const cash = filteredBills.filter(b => b.paymentMode === 'Cash').reduce((sum, b) => sum + (parseFloat(b.total) || 0), 0);
+        const online = filteredBills.filter(b => b.paymentMode === 'Online').reduce((sum, b) => sum + (parseFloat(b.total) || 0), 0);
+
+        return {
+            total,
+            cash,
+            online,
+            count: filteredBills.length
+        };
+    }, [filteredBills]);
+
+    const handleExportExcel = () => {
+        if (filteredBills.length === 0) return alert('No data to export');
+
+        const exportData = filteredBills.map(bill => ({
+            'Date': format(parseISO(bill.date), 'dd-MM-yyyy'),
+            'Customer Name': bill.customerName,
+            'Items Count': bill.items.length,
+            'Payment Mode': bill.paymentMode || 'N/A',
+            'Amount (₹)': parseFloat(bill.total).toFixed(2)
+        }));
+
+        // Add Total Row for Excel
+        exportData.push({
+            'Date': 'TOTAL',
+            'Customer Name': '',
+            'Items Count': '',
+            'Payment Mode': '',
+            'Amount (₹)': stats.total.toFixed(2)
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Sales Report");
+
+        // Auto-size columns
+        const maxWidth = exportData.reduce((w, r) => Math.max(w, r['Customer Name'].length), 15);
+        worksheet['!cols'] = [
+            { wch: 12 }, // Date
+            { wch: maxWidth + 5 }, // Customer
+            { wch: 12 }, // Items
+            { wch: 15 }, // Payment Mode
+            { wch: 15 }  // Amount
+        ];
+
+        XLSX.writeFile(workbook, `Sales_Report_${fromDate}_to_${toDate}.xlsx`);
+    };
 
     return (
-        <div className="space-y-8">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between no-print gap-4">
+        <div className="space-y-4 max-w-[1600px] mx-auto px-4 py-1">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between no-print gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Sales Reports</h1>
-                    <p className="text-gray-500">Analyze revenue and transaction history.</p>
+                    <h1 className="text-2xl font-black text-gray-900 leading-none">Sales Reports</h1>
+                    <p className="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em] mt-1.5">Business Intelligence Ledger</p>
                 </div>
-                <button
-                    onClick={() => window.print()}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 active:scale-95 transition-all"
-                >
-                    <PrinterIcon className="h-5 w-5" />
-                    <span>Print Summary</span>
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        onClick={handleExportExcel}
+                        className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-[10px] font-black text-white shadow-md shadow-emerald-100 hover:bg-emerald-700 active:scale-95 transition-all uppercase tracking-widest"
+                    >
+                        <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                        <span>Export Excel</span>
+                    </button>
+                    <button
+                        onClick={() => window.print()}
+                        className="flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-[10px] font-black text-white shadow-md shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all uppercase tracking-widest"
+                    >
+                        <PrinterIcon className="h-3.5 w-3.5" />
+                        <span>Print Report</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Stats Overview */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                    { label: "Revenue", value: stats.total, color: "bg-blue-600", text: "text-white" },
+                    { label: "Cash", value: stats.cash, color: "bg-emerald-600", text: "text-white" },
+                    { label: "Online", value: stats.online, color: "bg-purple-600", text: "text-white" },
+                    { label: "Transactions", value: stats.count, color: "bg-slate-900", text: "text-white", isCurrency: false }
+                ].map((stat, i) => (
+                    <div key={i} className={`rounded-2xl ${stat.color} px-4 py-3.5 ${stat.text} shadow-lg ring-1 ring-white/10`}>
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-80">{stat.label}</p>
+                        <p className="mt-1 text-xl font-black tabular-nums">
+                            {stat.isCurrency === false ? stat.value : `₹${stat.value.toFixed(0)}`}
+                        </p>
+                    </div>
+                ))}
             </div>
 
             {/* Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-100 no-print">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100 no-print">
                 <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">From Date</label>
-                    <input type="date" className="w-full rounded-xl bg-gray-50 border-none px-4 py-2.5 text-sm text-black outline-none focus:ring-2 focus:ring-blue-500" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1">From Date</label>
+                    <input
+                        type="date"
+                        className="w-full rounded-xl bg-gray-50 border-none px-3.5 py-2 text-[13px] font-bold text-gray-900 outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500 transition-all"
+                        value={fromDate}
+                        onChange={e => setFromDate(e.target.value)}
+                    />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">To Date</label>
-                    <input type="date" className="w-full rounded-xl bg-gray-50 border-none px-4 py-2.5 text-sm text-black outline-none focus:ring-2 focus:ring-blue-500" value={toDate} onChange={e => setToDate(e.target.value)} />
+                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1">To Date</label>
+                    <input
+                        type="date"
+                        className="w-full rounded-xl bg-gray-50 border-none px-3.5 py-2 text-[13px] font-bold text-gray-900 outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500 transition-all"
+                        value={toDate}
+                        onChange={e => setToDate(e.target.value)}
+                    />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Search Customer</label>
-                    <input type="text" placeholder="Search..." className="w-full rounded-xl bg-gray-50 border-none px-4 py-2.5 text-sm text-black outline-none focus:ring-2 focus:ring-blue-500" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                    <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-1">Search Customer</label>
+                    <input
+                        type="text"
+                        placeholder="Type name here..."
+                        className="w-full rounded-xl bg-gray-50 border-none px-3.5 py-2 text-[13px] font-bold text-gray-900 outline-none ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500 transition-all"
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                    />
                 </div>
             </div>
 
-            {/* Financial Overview */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="rounded-3xl bg-blue-600 p-6 text-white shadow-lg shadow-blue-100">
-                    <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Total Revenue</p>
-                    <p className="mt-1 text-2xl font-black">₹{totalRevenue.toFixed(2)}</p>
-                </div>
-                <div className="rounded-3xl bg-slate-900 p-6 text-white shadow-lg shadow-slate-100">
-                    <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Transactions</p>
-                    <p className="mt-1 text-2xl font-black">{filteredBills.length}</p>
-                </div>
-            </div>
-
-            {/* Bills List */}
-            <div className="space-y-4">
-                {filteredBills.map(bill => (
-                    <div key={bill.id} className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100 hover:shadow-md transition-shadow group relative overflow-hidden">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 ring-1 ring-blue-100">
-                                    <ShoppingBagIcon className="h-6 w-6" />
-                                </div>
-                                <div>
-                                    <h3 className="font-black text-gray-900 uppercase">{bill.customerName}</h3>
-                                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                                        <span className="font-bold">{format(parseISO(bill.date), 'dd MMM yyyy')}</span>
-                                        <span className="h-1 w-1 rounded-full bg-gray-200"></span>
-                                        <span className="uppercase">{bill.items.length} Items</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center justify-between sm:justify-end gap-6 border-t sm:border-t-0 pt-3 sm:pt-0 border-gray-50">
-                                <div className="text-left sm:text-right">
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Grand Total</p>
-                                    <p className="text-xl font-black text-slate-900 font-mono tracking-tight">₹{bill.total.toFixed(2)}</p>
-                                </div>
-                                <button onClick={() => deleteBill(bill.id)} className="p-2 text-gray-300 hover:text-red-500 no-print transition-colors">
-                                    <TrashIcon className="h-5 w-5" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Bill Preview (Mini) */}
-                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 pt-4 border-t border-gray-50 overflow-x-auto no-print">
-                            {bill.items.map((item, idx) => (
-                                <div key={idx} className="rounded-lg bg-gray-50 px-3 py-2 text-[10px]">
-                                    <p className="font-bold text-gray-600 uppercase truncate">{item.name}</p>
-                                    <p className="text-gray-400">{item.quantity} {item.unit} × ₹{item.price}</p>
-                                </div>
+            {/* Transaction Table */}
+            <div className="rounded-2xl bg-white shadow-lg shadow-gray-200/40 ring-1 ring-gray-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-gray-50/50 border-b border-gray-100">
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Date</th>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Customer</th>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 text-center">Items</th>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Payment</th>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Amount</th>
+                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 no-print text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {filteredBills.map(bill => (
+                                <tr key={bill.id} className="hover:bg-blue-50/20 transition-colors group">
+                                    <td className="px-4 py-2.5 whitespace-nowrap text-[12px] font-bold text-gray-500">
+                                        {format(parseISO(bill.date), 'dd MMM yyyy')}
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[13px] font-black uppercase text-gray-900 leading-none">{bill.customerName}</span>
+                                            <span className="text-[9px] font-bold text-gray-300 uppercase tracking-tighter">#{bill.id.slice(-4)}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-center">
+                                        <span className="text-[12px] font-black text-blue-600/60">
+                                            {bill.items.length}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                        <span className={`inline-flex items-center rounded px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${bill.paymentMode === 'Cash' ? 'bg-emerald-50 text-emerald-600' : 'bg-purple-50 text-purple-600'
+                                            }`}>
+                                            {bill.paymentMode || 'Online'}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right">
+                                        <span className="text-[13px] font-black text-gray-900 tabular-nums">₹{parseFloat(bill.total).toFixed(2)}</span>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-center no-print">
+                                        <button
+                                            onClick={() => deleteBill(bill.id)}
+                                            className="p-1.5 text-gray-300 hover:text-red-500 transition-colors rounded-md hover:bg-red-50"
+                                            title="Delete"
+                                        >
+                                            <TrashIcon className="h-3.5 w-3.5" />
+                                        </button>
+                                    </td>
+                                </tr>
                             ))}
-                        </div>
-                    </div>
-                ))}
+                        </tbody>
+                        <tfoot>
+                            <tr className=" text-black border-t-2 border-slate-800">
+                                <td colSpan="4" className="px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Total Revenue</td>
+                                <td className="px-4 py-3 text-right">
+                                    <span className="text-lg font-black tabular-nums">₹{stats.total.toFixed(2)}</span>
+                                </td>
+                                <td className="no-print"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
 
                 {filteredBills.length === 0 && (
-                    <div className="py-20 text-center rounded-3xl border-2 border-dashed border-gray-100">
-                        <p className="text-gray-400 font-medium">No transactions found for the selected filters.</p>
+                    <div className="py-16 text-center bg-gray-50/50">
+                        <div className="flex flex-col items-center">
+                            <ChartBarIcon className="h-8 w-8 text-gray-300 mb-2 stroke-1" />
+                            <p className="text-[12px] font-black uppercase text-gray-400 tracking-widest">No transaction records</p>
+                        </div>
                     </div>
                 )}
             </div>
 
             <style jsx global>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { background: white !important; }
-          main { padding: 0 !important; margin: 0 !important; }
-          .max-w-5xl { max-width: 100% !important; }
-          .shadow-sm, .shadow-lg, .shadow-2xl { box-shadow: none !important; }
-          .ring-1 { border: 1px solid #f3f4f6 !important; ring: none !important; }
-        }
-      `}</style>
+                @media print {
+                    .no-print { display: none !important; }
+                    body { background: white !important; padding: 0 !important; }
+                    main { padding: 0 !important; margin: 0 !important; }
+                    .max-w-[1600px] { max-width: 100% !important; padding: 0 !important; }
+                    .shadow-xl, .shadow-sm, .shadow-lg { box-shadow: none !important; }
+                    .rounded-2xl, .rounded-xl { border-radius: 0 !important; }
+                    .ring-1 { border: none !important; }
+                    table { width: 100% !important; border: 1px solid #eee !important; }
+                    th { background-color: #f9fafb !important; color: #666 !important; -webkit-print-color-adjust: exact; }
+                    tfoot tr { background-color: #0f172a !important; color: white !important; -webkit-print-color-adjust: exact; }
+                    .bg-slate-900 { background-color: #0f172a !important; -webkit-print-color-adjust: exact; }
+                }
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+            `}</style>
         </div>
     );
 }
